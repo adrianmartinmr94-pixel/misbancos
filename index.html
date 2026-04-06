@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MisBancos — Gastos</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7b61ff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MisBancos">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --card: #1a1a25;
+    --border: #2a2a3d;
+    --accent: #7b61ff;
+    --accent2: #ff6b9d;
+    --green: #00e5a0;
+    --red: #ff4d6d;
+    --yellow: #ffd166;
+    --text: #f0f0ff;
+    --muted: #7070a0;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Background mesh */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 20% 20%, #7b61ff18 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, #ff6b9d12 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; padding: 0 0 120px; }
+
+  /* Header */
+  .header {
+    padding: 52px 20px 24px;
+    background: linear-gradient(180deg, #0a0a0f 60%, transparent);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  .app-name {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .date-chip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+
+  /* Balance card */
+  .balance-card {
+    background: linear-gradient(135deg, var(--accent) 0%, #5b3ff0 50%, var(--accent2) 100%);
+    border-radius: 24px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 20px 8px;
+  }
+
+  .balance-card::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .balance-card::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: -20px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .balance-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 8px;
+  }
+
+  .balance-amount {
+    font-family: var(--font-mono);
+    font-size: 42px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+
+  .balance-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-item { }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    margin-bottom: 2px;
+  }
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  /* Month nav */
+  .month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+  }
+
+  .month-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .month-btn:active { transform: scale(0.92); background: var(--accent); border-color: var(--accent); }
+
+  .month-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Category chips */
+  .cats-scroll {
+    display: flex;
+    gap: 8px;
+    padding: 0 20px 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cats-scroll::-webkit-scrollbar { display: none; }
+
+  .cat-chip {
+    flex-shrink: 0;
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .cat-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .cat-chip:active { transform: scale(0.95); }
+
+  /* Section title */
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 20px 12px;
+  }
+
+  /* Transactions */
+  .transactions { padding: 0 20px; }
+
+  .tx-group-date {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    margin-top: 20px;
+  }
+  .tx-group-date:first-child { margin-top: 0; }
+
+  .tx-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    animation: slideIn 0.3s ease;
+  }
+  .tx-item:active { transform: scale(0.98); border-color: var(--accent); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tx-icon {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tx-cat {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .tx-amount {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 500;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .tx-amount.expense { color: var(--red); }
+  .tx-amount.income { color: var(--green); }
+
+  .tx-delete {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .tx-delete:active { background: #ff4d6d22; color: var(--red); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 32px;
+    right: 24px;
+    width: 60px; height: 60px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(123,97,255,0.5);
+    transition: all 0.2s;
+    z-index: 200;
+  }
+  .fab:active { transform: scale(0.92); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 300;
+    display: flex;
+    align-items: flex-end;
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--surface);
+    border-radius: 28px 28px 0 0;
+    padding: 20px 20px 40px;
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    border-top: 1px solid var(--border);
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 24px;
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 24px;
+    letter-spacing: -0.01em;
+  }
+
+  /* Type toggle */
+  .type-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .type-btn {
+    padding: 12px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .type-btn.active-expense { background: #ff4d6d18; border-color: var(--red); color: var(--red); }
+  .type-btn.active-income { background: #00e5a018; border-color: var(--green); color: var(--green); }
+
+  /* Form fields */
+  .field { margin-bottom: 16px; }
+  .field-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .field input, .field select {
+    width: 100%;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--muted); }
+  .field select option { background: var(--card); }
+
+  /* Amount field special */
+  .amount-wrapper { position: relative; }
+  .currency-symbol {
+    position: absolute;
+    left: 16px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    pointer-events: none;
+  }
+  .field input.amount-input { padding-left: 32px; font-size: 24px; font-weight: 500; }
+
+  /* Cat searchable dropdown */
+  .cat-search-wrap { position: relative; margin-bottom: 16px; }
+
+  .cat-selected-display {
+    width: 100%;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    user-select: none;
+  }
+  .cat-selected-display:hover, .cat-selected-display.open { border-color: var(--accent); }
+
+  .cat-selected-display span:first-child {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+  }
+  .cat-selected-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .cat-chevron {
+    color: var(--muted);
+    font-size: 14px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .cat-chevron.open { transform: rotate(180deg); }
+
+  .cat-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0; right: 0;
+    background: var(--surface);
+    border: 1.5px solid var(--accent);
+    border-radius: 16px;
+    overflow: hidden;
+    z-index: 500;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  }
+  .cat-dropdown.open { display: block; }
+
+  .cat-search-box {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-search-box input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+  }
+  .cat-search-box input:focus { border-color: var(--accent); }
+  .cat-search-box input::placeholder { color: var(--muted); }
+
+  .cat-options-list {
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    padding: 6px 0;
+  }
+
+  .cat-group-header {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 14px 4px;
+  }
+  .cat-group-header:not(:first-child) { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 10px; }
+
+  .cat-opt-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 10px;
+  }
+  .cat-opt-item:hover, .cat-opt-item:active { background: var(--card); }
+  .cat-opt-item.selected { background: #7b61ff18; }
+
+  .cat-opt-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .cat-opt-name {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--text);
+    flex: 1;
+  }
+  .cat-opt-item.selected .cat-opt-name { color: var(--accent); font-weight: 500; }
+  .cat-no-results {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: white;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(123,97,255,0.4);
+  }
+  .submit-btn:active { transform: scale(0.97); }
+
+  /* Charts mini */
+  .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 60px;
+    padding: 0 20px;
+    margin-bottom: 24px;
+  }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    background: var(--border);
+    min-height: 4px;
+    transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .bar.current { background: linear-gradient(180deg, var(--accent), #5b3ff0); }
+  .bar-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+
+  .toast {
+    position: fixed;
+    bottom: 110px;
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--green);
+    color: #000;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 400;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-top">
+      <div class="app-name">💳 MisBancos</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="date-chip" onclick="exportXLSX()" style="cursor:pointer;border:1px solid var(--accent);color:var(--accent);background:var(--card);font-family:var(--font-mono);font-size:11px;border-radius:20px;padding:4px 12px;">⬇ XLSX</button>
+        <div class="date-chip" id="headerDate"></div>
+      </div>
+    </div>
+    <div class="balance-card">
+      <div class="balance-label">Balance del mes</div>
+      <div class="balance-amount" id="balanceAmount">$0.00</div>
+      <div class="balance-stats">
+        <div class="stat-item">
+          <div class="stat-label">↑ Ingresos</div>
+          <div class="stat-value" id="statIncome">$0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">↓ Gastos</div>
+          <div class="stat-value" id="statExpense">$0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="month-nav">
+    <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+    <div class="month-title" id="monthTitle"></div>
+    <button class="month-btn" onclick="changeMonth(1)">›</button>
+  </div>
+
+  <!-- Mini chart -->
+  <div class="chart-bars" id="chartBars"></div>
+
+  <!-- Category filter -->
+  <div class="cats-scroll" id="catFilter"></div>
+
+  <div class="section-title">Transacciones</div>
+  <div class="transactions" id="txList"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()">＋</button>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nueva transacción</div>
+
+    <div class="type-toggle">
+      <button class="type-btn active-expense" id="btnExpense" onclick="setType('expense')">— Gasto</button>
+      <button class="type-btn" id="btnIncome" onclick="setType('income')">+ Ingreso</button>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Monto</label>
+      <div class="amount-wrapper">
+        <span class="currency-symbol">$</span>
+        <input class="amount-input" type="number" id="inputAmount" placeholder="0.00" inputmode="decimal" step="0.01" min="0">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Descripción</label>
+      <input type="text" id="inputDesc" placeholder="Ej: Supermercado, Netflix...">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Fecha</label>
+      <input type="date" id="inputDate">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Sous-catégorie</label>
+      <div class="cat-search-wrap" id="catSearchWrap">
+        <div class="cat-selected-display" id="catSelectedDisplay" onclick="toggleCatDropdown()">
+          <span id="catSelectedText">Loyer</span>
+          <span class="cat-selected-badge" id="catSelectedBadge">Casa</span>
+          <span class="cat-chevron" id="catChevron">▾</span>
+        </div>
+        <div class="cat-dropdown" id="catDropdown">
+          <div class="cat-search-box">
+            <input type="text" id="catSearchInput" placeholder="Rechercher..." oninput="filterCatOptions()" autocomplete="off">
+          </div>
+          <div class="cat-options-list" id="catOptionsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="submit-btn" onclick="addTransaction()">Guardar transacción</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────
+// SUBCATEGORIES: { id, label, categoryId }
+const SUBCATS = [
+  { id: 'loyer',            label: 'Loyer',                   catId: 'casa' },
+  { id: 'maintenance',      label: 'Maintenance maison',       catId: 'casa' },
+  { id: 'equipement_maison',label: 'Équipement maison',        catId: 'casa' },
+  { id: 'assurance_hab',    label: 'Assurance habitation',     catId: 'casa' },
+  { id: 'electricite',      label: 'Électricité',              catId: 'casa' },
+  { id: 'revenus_nets',     label: 'Revenus nets',             catId: 'trabajo' },
+  { id: 'contrat',          label: 'Contrat',                  catId: 'comtech' },
+  { id: 'equipement_tech',  label: 'Équipement tech',          catId: 'comtech' },
+  { id: 'souscriptions_tech',label:'Souscriptions tech',       catId: 'comtech' },
+  { id: 'nourriture',       label: 'Nourriture',               catId: 'nourriture' },
+  { id: 'sport',            label: 'Sport',                    catId: 'sante' },
+  { id: 'frais_medicaux',   label: 'Frais médicaux',           catId: 'sante' },
+  { id: 'assurance_sante',  label: 'Assurance santé',          catId: 'sante' },
+  { id: 'transport_pub',    label: 'Transport publique',       catId: 'transport' },
+  { id: 'interets',         label: 'Intérêts',                 catId: 'finances' },
+  { id: 'menage',           label: 'Ménage',                   catId: 'personnel' },
+  { id: 'impots',           label: 'Impôts',                   catId: 'finances' },
+  { id: 'vetements',        label: 'Vêtements',                catId: 'vetements' },
+  { id: 'pressing',         label: 'Pressing',                 catId: 'vetements' },
+  { id: 'nourriture_anim',  label: 'Nourriture animaux',       catId: 'animaux' },
+  { id: 'litiere',          label: 'Litière',                  catId: 'animaux' },
+  { id: 'veterinaire',      label: 'Vétérinaire',              catId: 'animaux' },
+  { id: 'evenements_cult',  label: 'Évènements culturels',     catId: 'loisirs' },
+  { id: 'vacances',         label: 'Vacances',                 catId: 'loisirs' },
+  { id: 'sorties_amis',     label: 'Sorties amis',             catId: 'loisirs' },
+  { id: 'frais_perso',      label: 'Frais personnels',         catId: 'frais_perso' },
+  { id: 'epargne',          label: 'Épargne',                  catId: 'epargne' },
+];
+
+// CATEGORIES
+const CATS = [
+  { id: 'casa',       label: 'Casa' },
+  { id: 'trabajo',    label: 'Trabajo' },
+  { id: 'comtech',    label: 'Comunicaciones y tecnología' },
+  { id: 'nourriture', label: 'Nourriture' },
+  { id: 'sante',      label: 'Santé' },
+  { id: 'transport',  label: 'Transport' },
+  { id: 'finances',   label: 'Finances' },
+  { id: 'personnel',  label: 'Personnel' },
+  { id: 'vetements',  label: 'Vêtements' },
+  { id: 'animaux',    label: 'Animaux' },
+  { id: 'loisirs',    label: 'Loisirs' },
+  { id: 'frais_perso',label: 'Frais personnels' },
+  { id: 'epargne',    label: 'Épargne' },
+];
+
+const CAT_COLORS = {
+  casa:'#55efc4', trabajo:'#00e5a0', comtech:'#0984e3',
+  nourriture:'#ff9f43', sante:'#fd79a8', transport:'#a29bfe',
+  finances:'#6c5ce7', personnel:'#fdcb6e', vetements:'#e17055',
+  animaux:'#81ecec', loisirs:'#74b9ff', frais_perso:'#b2bec3',
+  epargne:'#7b61ff'
+};
+
+let transactions = [];
+let currentDate = new Date();
+let filterCat = 'all';
+let txType = 'expense';
+let selSubcat = 'loyer';
+
+// ── Storage ────────────────────────────────────────────────────────────
+function save() {
+  try { localStorage.setItem('misbancos_v2', JSON.stringify(transactions)); } catch(e) {}
+}
+function load() {
+  try {
+    const d = localStorage.getItem('misbancos_v2');
+    if (d) transactions = JSON.parse(d);
+  } catch(e) { transactions = []; }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+const fmt = n => '$' + Math.abs(n).toLocaleString('es', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtShort = n => {
+  if(Math.abs(n) >= 1000) return '$' + (Math.abs(n)/1000).toFixed(1) + 'k';
+  return fmt(n);
+};
+
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function currentMonthTx() {
+  const key = monthKey(currentDate);
+  return transactions.filter(t => t.date.startsWith(key));
+}
+
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// ── Header date ─────────────────────────────────────────────────────────
+function renderHeaderDate() {
+  const d = new Date();
+  document.getElementById('headerDate').textContent =
+    d.toLocaleDateString('es', {day:'2-digit', month:'short'});
+}
+
+// ── Month nav ──────────────────────────────────────────────────────────
+function changeMonth(delta) {
+  currentDate.setMonth(currentDate.getMonth() + delta);
+  renderAll();
+}
+
+function renderMonthTitle() {
+  document.getElementById('monthTitle').textContent =
+    `${MONTHS_ES[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+}
+
+// ── Balance ────────────────────────────────────────────────────────────
+function renderBalance() {
+  const txs = currentMonthTx();
+  const income = txs.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0);
+  const expense = txs.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
+  const balance = income - expense;
+
+  document.getElementById('balanceAmount').textContent =
+    (balance < 0 ? '-' : '') + fmt(balance);
+  document.getElementById('statIncome').textContent = fmtShort(income);
+  document.getElementById('statExpense').textContent = fmtShort(expense);
+}
+
+// ── Chart ──────────────────────────────────────────────────────────────
+function renderChart() {
+  const bars = document.getElementById('chartBars');
+  bars.innerHTML = '';
+  const curKey = monthKey(currentDate);
+
+  // Last 7 months
+  const months = [];
+  for(let i=6;i>=0;i--) {
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth()-i, 1);
+    months.push({ key: monthKey(d), label: MONTHS_ES[d.getMonth()].slice(0,3) });
+  }
+
+  const maxVal = Math.max(1, ...months.map(m => {
+    const txs = transactions.filter(t=>t.date.startsWith(m.key)&&t.type==='expense');
+    return txs.reduce((a,t)=>a+t.amount,0);
+  }));
+
+  months.forEach(m => {
+    const txs = transactions.filter(t=>t.date.startsWith(m.key)&&t.type==='expense');
+    const total = txs.reduce((a,t)=>a+t.amount,0);
+    const pct = Math.max(4, (total/maxVal)*52);
+    const wrap = document.createElement('div');
+    wrap.className = 'bar-wrap';
+    wrap.innerHTML = `<div class="bar ${m.key===curKey?'current':''}" style="height:${pct}px"></div>
+                      <div class="bar-label">${m.label}</div>`;
+    bars.appendChild(wrap);
+  });
+}
+
+// ── Category filter chips ──────────────────────────────────────────────
+function renderCatFilter() {
+  const el = document.getElementById('catFilter');
+  el.innerHTML = '';
+  const all = document.createElement('div');
+  all.className = 'cat-chip' + (filterCat==='all'?' active':'');
+  all.textContent = 'Tous';
+  all.onclick = () => { filterCat='all'; renderAll(); };
+  el.appendChild(all);
+
+  CATS.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'cat-chip' + (filterCat===c.id?' active':'');
+    chip.textContent = c.label;
+    chip.onclick = () => { filterCat=c.id; renderAll(); };
+    el.appendChild(chip);
+  });
+}
+
+// ── Transactions list ──────────────────────────────────────────────────
+function renderTxList() {
+  let txs = currentMonthTx();
+  if(filterCat !== 'all') txs = txs.filter(t => {
+    const sub = SUBCATS.find(s=>s.id===t.cat);
+    return sub && sub.catId === filterCat;
+  });
+  txs.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const el = document.getElementById('txList');
+  el.innerHTML = '';
+
+  if(!txs.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-text">Sin transacciones este mes</div>
+    </div>`;
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  txs.forEach(t => {
+    if(!groups[t.date]) groups[t.date] = [];
+    groups[t.date].push(t);
+  });
+
+  Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date => {
+    const label = document.createElement('div');
+    label.className = 'tx-group-date';
+    const d = new Date(date+'T12:00:00');
+    label.textContent = d.toLocaleDateString('fr', {weekday:'long', day:'numeric', month:'long'});
+    el.appendChild(label);
+
+    groups[date].forEach(t => {
+      const sub = SUBCATS.find(s=>s.id===t.cat) || SUBCATS[0];
+      const cat = CATS.find(c=>c.id===sub.catId) || CATS[0];
+      const color = CAT_COLORS[cat.id] || '#b2bec3';
+      const item = document.createElement('div');
+      item.className = 'tx-item';
+      item.innerHTML = `
+        <div class="tx-icon" style="background:${color}22; color:${color}; font-size:13px; font-weight:700; letter-spacing:-0.02em;">
+          ${cat.label.slice(0,3).toUpperCase()}
+        </div>
+        <div class="tx-info">
+          <div class="tx-name">${t.desc || sub.label}</div>
+          <div class="tx-cat">${sub.label} · ${cat.label}</div>
+        </div>
+        <div class="tx-amount ${t.type}">
+          ${t.type==='expense'?'-':'+'}${fmt(t.amount)}
+        </div>
+        <button class="tx-delete" onclick="deleteTx('${t.id}', event)">✕</button>
+      `;
+      el.appendChild(item);
+    });
+  });
+}
+
+function deleteTx(id, e) {
+  e.stopPropagation();
+  transactions = transactions.filter(t=>t.id!==id);
+  save();
+  renderAll();
+  showToast('Eliminado', '#ff4d6d');
+}
+
+// ── Modal ──────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modalOverlay').classList.add('open');
+  // Set today's date
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('inputDate').value = today;
+  document.getElementById('inputAmount').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('inputAmount').value = '';
+  document.getElementById('inputDesc').value = '';
+  closeCatDropdown();
+}
+
+function closeModalOutside(e) {
+  if(e.target.id==='modalOverlay') closeModal();
+}
+
+function setType(type) {
+  txType = type;
+  document.getElementById('btnExpense').className = 'type-btn' + (type==='expense'?' active-expense':'');
+  document.getElementById('btnIncome').className = 'type-btn' + (type==='income'?' active-income':'');
+}
+
+function renderCatGrid() {
+  // Update the selected display
+  const sub = SUBCATS.find(s=>s.id===selSubcat) || SUBCATS[0];
+  const cat = CATS.find(c=>c.id===sub.catId) || CATS[0];
+  const color = CAT_COLORS[cat.id] || '#b2bec3';
+  document.getElementById('catSelectedText').textContent = sub.label;
+  const badge = document.getElementById('catSelectedBadge');
+  badge.textContent = cat.label;
+  badge.style.background = color;
+  populateCatOptions('');
+}
+
+function populateCatOptions(query) {
+  const list = document.getElementById('catOptionsList');
+  list.innerHTML = '';
+  const q = query.toLowerCase();
+
+  let hasResults = false;
+  CATS.forEach(cat => {
+    const subs = SUBCATS.filter(s => s.catId === cat.id && (!q || s.label.toLowerCase().includes(q) || cat.label.toLowerCase().includes(q)));
+    if (!subs.length) return;
+    hasResults = true;
+
+    if (!q) {
+      const header = document.createElement('div');
+      header.className = 'cat-group-header';
+      header.textContent = cat.label;
+      list.appendChild(header);
+    }
+
+    subs.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'cat-opt-item' + (selSubcat === s.id ? ' selected' : '');
+      const color = CAT_COLORS[cat.id] || '#b2bec3';
+      item.innerHTML = `<div class="cat-opt-dot" style="background:${color}"></div>
+                        <span class="cat-opt-name">${s.label}</span>
+                        ${!q ? '' : `<span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${cat.label}</span>`}`;
+      item.onclick = () => {
+        selSubcat = s.id;
+        closeCatDropdown();
+        renderCatGrid();
+      };
+      list.appendChild(item);
+    });
+  });
+
+  if (!hasResults) {
+    list.innerHTML = '<div class="cat-no-results">Sin resultados</div>';
+  }
+}
+
+function toggleCatDropdown() {
+  const dd = document.getElementById('catDropdown');
+  const disp = document.getElementById('catSelectedDisplay');
+  const chev = document.getElementById('catChevron');
+  const isOpen = dd.classList.contains('open');
+  if (isOpen) {
+    closeCatDropdown();
+  } else {
+    dd.classList.add('open');
+    disp.classList.add('open');
+    chev.classList.add('open');
+    document.getElementById('catSearchInput').value = '';
+    populateCatOptions('');
+    setTimeout(() => document.getElementById('catSearchInput').focus(), 50);
+  }
+}
+
+function closeCatDropdown() {
+  document.getElementById('catDropdown').classList.remove('open');
+  document.getElementById('catSelectedDisplay').classList.remove('open');
+  document.getElementById('catChevron').classList.remove('open');
+}
+
+function filterCatOptions() {
+  const q = document.getElementById('catSearchInput').value;
+  populateCatOptions(q);
+}
+
+function addTransaction() {
+  const amount = parseFloat(document.getElementById('inputAmount').value);
+  const desc = document.getElementById('inputDesc').value.trim();
+  const date = document.getElementById('inputDate').value;
+
+  if(!amount || amount <= 0) {
+    showToast('Ingresa un monto válido', '#ff4d6d');
+    return;
+  }
+  if(!date) { showToast('Selecciona una fecha', '#ff4d6d'); return; }
+
+  const tx = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+    type: txType,
+    amount,
+    desc,
+    cat: selSubcat,
+    date
+  };
+
+  transactions.push(tx);
+  save();
+
+  // Jump to that month if needed
+  const txDate = new Date(date+'T12:00:00');
+  currentDate = new Date(txDate.getFullYear(), txDate.getMonth(), 1);
+
+  closeModal();
+  renderAll();
+  showToast('✓ Guardado en tu dispositivo');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function showToast(msg, color = '#00e5a0') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.color = color === '#ff4d6d' ? 'white' : '#000';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── Export XLSX ────────────────────────────────────────────────────────
+function exportXLSX() {
+  if(!transactions.length) { showToast('No hay datos para exportar', '#ff4d6d'); return; }
+
+  const rows = transactions
+    .slice()
+    .sort((a,b)=>a.date.localeCompare(b.date))
+    .map(t => {
+      const sub = SUBCATS.find(s=>s.id===t.cat) || { label: t.cat, catId: '' };
+      const cat = CATS.find(c=>c.id===sub.catId) || { label: sub.catId };
+      return {
+        'Fecha': t.date,
+        'Tipo': t.type === 'expense' ? 'Gasto' : 'Ingreso',
+        'Categoría': cat.label,
+        'Sub-categoría': sub.label,
+        'Descripción': t.desc || '',
+        'Monto': t.type === 'expense' ? -t.amount : t.amount,
+      };
+    });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Column widths
+  ws['!cols'] = [
+    {wch:12}, {wch:10}, {wch:26}, {wch:22}, {wch:28}, {wch:12}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transacciones');
+
+  const fileName = `misbancos_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  showToast('✓ Exportado como XLSX');
+}
+
+// ── Render All ─────────────────────────────────────────────────────────
+function renderAll() {
+  renderMonthTitle();
+  renderBalance();
+  renderChart();
+  renderCatFilter();
+  renderTxList();
+}
+
+// ── Service Worker ─────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW failed:', err));
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+load();
+renderHeaderDate();
+renderCatGrid();
+renderAll();
+
+// Close cat dropdown when clicking outside
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('catSearchWrap');
+  if (wrap && !wrap.contains(e.target)) closeCatDropdown();
+});
+
+// Listen for cat grid clicks when modal opens
+document.getElementById('modalOverlay').addEventListener('transitionend', () => {
+  if(document.getElementById('modalOverlay').classList.contains('open')) {
+    renderCatGrid();
+  }
+});
+</script>
+</body>
+</html>
